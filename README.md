@@ -1,13 +1,19 @@
 <h1 align="center">Godex</h1>
-<h3>
+<div align="center">
+<h4>
 Godex (Go-indexer): Simple multi-threaded Filesystem traverser
-</h3>
+</h4>
+</div>
 
-##### USAGE: 
+#### Install:
+1. `git clone https://github.com/Cybergenik/godex.git`
+2. `cd godex && go install`
+
+#### Usage: 
 `godex [OPTIONS] <dir/file> ...`
 
 Ex: 
 - `godex /home/user1`
 - `godex /home/user1 /home/user2`
-##### OPTIONS:
+#### Options:
 `--help`: Prints this message
