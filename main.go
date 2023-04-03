@@ -21,19 +21,27 @@ func traverse(file string, recChan chan int64) {
 	files, err := os.ReadDir(file)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening \"%v\": %v\n", file, err)
-		os.Exit(1)
+        recChan <- 0
+        return
 	}
-	var total int64
+    var total int64
 	c := make(chan int64)
 	threads := 0
 	for _, f := range files {
-		if f.IsDir() {
-			go traverse(filepath.Join(file, f.Name()), c)
-			threads++
-		} else if f.Type().IsRegular() {
-			finfo, _ := f.Info()
-			total += finfo.Size()
-		}
+        t := f.Type()
+        if t.IsDir() || t.IsRegular() {
+            finfo, err := f.Info()
+            if err != nil {
+                fmt.Fprintf(os.Stderr, "Error opening \"%v\": %v\n", f, err)
+                recChan <- 0
+                return
+            }
+            total += finfo.Size()
+            if t.IsDir() {
+                threads++
+                go traverse(filepath.Join(file, f.Name()), c)
+            }
+        }
 	}
 	for i := 0; i < threads; i++ {
 		total += <-c
@@ -62,13 +70,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error opening \"%v\": %v\n", fname, err)
 			os.Exit(1)
 		}
-		var total_size int64
+        total_size := file.Size()
 		if file.IsDir() {
 			c := make(chan int64)
 			go traverse(fname, c)
-			total_size = <-c
-		} else {
-			total_size = file.Size()
+			total_size += <-c
 		}
 		if total_size < KILOBYTE { // bytes
 			fmt.Printf("%v size: %d\n", file.Name(), total_size)
