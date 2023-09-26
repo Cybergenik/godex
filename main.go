@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+    "sync/atomic"
+    "sync"
 )
 
 func usage() {
 	fmt.Println(
-		`Godex (Go-indexer): Simple multi-threaded Filesystem traverser
+		`Godex v1.2(Go-indexer): Simple multi-threaded Filesystem traverser
 USAGE: 
     godex <path to dir/file>
     Ex: godex /home/user1
@@ -17,36 +19,33 @@ OPTIONS:
     --help: Prints this message`)
 }
 
-func traverse(file string, recChan chan int64) {
+func traverse(file string, total *uint64) {
 	files, err := os.ReadDir(file)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error opening \"%v\": %v\n", file, err)
-		recChan <- 0
-		return
+		//fmt.Fprintf(os.Stderr, "Error opening \"%v\": %v\n", file, err)
+        return
 	}
-	var total int64
-	c := make(chan int64)
-	threads := 0
+    //atomic.AddUint64()
+    wg := sync.WaitGroup{}
 	for _, f := range files {
 		t := f.Type()
 		if t.IsDir() || t.IsRegular() {
 			finfo, err := f.Info()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error opening \"%v\": %v\n", f, err)
-				recChan <- 0
-				return
+				//fmt.Fprintf(os.Stderr, "Error opening \"%v\": %v\n", f, err)
+                return
 			}
-			total += finfo.Size()
+            atomic.AddUint64(total, uint64(finfo.Size()))
 			if t.IsDir() {
-				threads++
-				go traverse(filepath.Join(file, f.Name()), c)
+                wg.Add(1)
+				go func(name string) {
+                    traverse(name, total)
+                    wg.Done()
+                }(filepath.Join(file, f.Name()))
 			}
 		}
 	}
-	for i := 0; i < threads; i++ {
-		total += <-c
-	}
-	recChan <- total
+    wg.Wait()
 }
 
 const (
@@ -70,11 +69,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error opening \"%v\": %v\n", fname, err)
 			os.Exit(1)
 		}
-		total_size := file.Size()
+		total_size := uint64(file.Size())
 		if file.IsDir() {
-			c := make(chan int64)
-			go traverse(fname, c)
-			total_size += <-c
+		    traverse(fname, &total_size)
 		}
 		if total_size < KILOBYTE { // bytes
 			fmt.Printf("%v size: %d\n", file.Name(), total_size)
